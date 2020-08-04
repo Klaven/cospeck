@@ -1,0 +1,17 @@
+{
+    "version": "1.0.0",
+    "hook": {
+        "path": "HOOK_BIN_DIR/oci-seccomp-bpf-hook",
+        "args": [
+            "cospeck-hook",
+            "--id"
+        ]
+    },
+    "when": {
+	"always": true,
+        "commands": [".*"]
+    },
+    "stages": [
+        "prestart"
+    ]
+}
