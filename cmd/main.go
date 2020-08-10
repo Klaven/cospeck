@@ -24,7 +24,11 @@ func rootCmd(cmd *cobra.Command, args []string) {
 	var res string
 	var err error
 
+	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
+	//TODO: fail if not clean
+
 	if res, err = kubectlRunner("create", "deployment", "test-deployment", "--image=nginx"); err != nil {
+		fmt.Println("Failed to create deployment")
 		return
 	}
 
@@ -65,6 +69,7 @@ func rootCmd(cmd *cobra.Command, args []string) {
 	// check deployment
 
 	if res, err = kubectlRunner("wait", "pods", "--for=condition=ready", "--all", "--timeout=5m"); err != nil {
+		fmt.Println("waiting for pods error")
 		return
 	}
 
@@ -89,6 +94,10 @@ func rootCmd(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	fmt.Println("got current specs:")
+	fmt.Println(res)
+	fmt.Println("Cleanup time!")
+
 	_, _ = cleanup()
 }
 
@@ -99,8 +108,7 @@ func cleanup() (string, error) {
 func kubectlRunner(args ...string) (string, error) {
 	args = append(args, "--namespace=performance-tests" /*, "-o=json"*/)
 	cmd := exec.Command("kubectl", args...)
-	cmd.Env = append(os.Environ(),
-		"KUBECONFIG=/home/marek/.kube/config")
+	cmd.Env = append(os.Environ(), "KUBECONFIG=/var/run/kubernetes/admin.kubeconfig")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
