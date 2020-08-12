@@ -9,12 +9,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type Flags struct {
+	Runtime       string
+	CreateCluster bool
+}
+
 func RootCmd() *cobra.Command {
-	return &cobra.Command{
+	flags := &Flags{}
+
+	cmd := &cobra.Command{
 		Use:   "cospeck",
 		Short: "A container runtime speed test",
 		Run:   rootCmd,
 	}
+
+	// subcommands
+	cmd.AddCommand(testCmd())
+
+	// Flags
+	cmd.PersistentFlags().StringVarP(&flags.Runtime, "runtime", "r", "docker", "Runtime to use {cri-o|docker}")
+	// really I would like to take the kubernetes cluster out of it eventually. but right now it makes some things easy
+	cmd.PersistentFlags().BoolP("create-runtime", "c", true, "Create a cluster")
+
+	return cmd
 }
 
 func rootCmd(cmd *cobra.Command, args []string) {
