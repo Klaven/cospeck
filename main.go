@@ -1,7 +1,7 @@
 package main
 
-import "github.com/Klaven/cospeck/cmd"
+import "github.com/Klaven/cospeck/cmd/cospeck"
 
 func main() {
-	cmd.RootCmd().Execute()
+	cospeck.Run()
 }
