@@ -75,7 +75,7 @@ func rootCmd(cmd *cobra.Command, args []string) {
 
 	// scale deployment
 
-	if res, err = utils.KubectlRunner("scale", "deployment/test-deployment", "--replicas=10"); err != nil {
+	if res, err = utils.KubectlRunner("scale", "deployment/test-deployment", "--replicas=90"); err != nil {
 		return
 	}
 
