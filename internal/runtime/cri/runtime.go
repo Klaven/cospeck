@@ -163,6 +163,10 @@ func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOve
 
 	_, containerID, err := c.CreateContainer(podInfo.PodSandboxId, &cconfig, &pconfig)
 
+	if err != nil {
+		return nil, err
+	}
+
 	containerObj := &Container{
 		name:        name,
 		imageName:   image,

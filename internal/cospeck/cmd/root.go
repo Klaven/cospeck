@@ -50,7 +50,7 @@ func runContainerCmd(cmd *cobra.Command, args []string) {
 
 	rt.Clean(ctx)
 
-	ct, err := rt.CreatePodAndContainer(ctx, "nginx-pod", "docker.io/library/alpine:latest", "/bin/bash sleep 5000", false)
+	ct, err := rt.CreatePodAndContainer(ctx, "nginx-pod", "docker.io/library/alpine:latest", "sleep 5000", false)
 
 	if err != nil {
 		fmt.Println(err)
