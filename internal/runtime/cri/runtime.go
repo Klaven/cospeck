@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -34,10 +35,11 @@ type Runtime struct {
 	imageClient      *criapi.ImageServiceClient
 	pconfig          criapi.PodSandboxConfig
 	cconfig          criapi.ContainerConfig
+	timeout          time.Duration
 }
 
 // NewRuntime creates an instance of the CRI runtime
-func NewRuntime(path string) (*Runtime, error) {
+func NewRuntime(path string, timeout time.Duration) (*Runtime, error) {
 	if path == "" {
 		return nil, fmt.Errorf("socket path unspecified")
 	}
@@ -66,6 +68,7 @@ func NewRuntime(path string) (*Runtime, error) {
 		imageClient:      &imageClient,
 		cconfig:          cconfig,
 		pconfig:          pconfig,
+		timeout:          timeout,
 	}
 
 	return runtime, nil
@@ -99,44 +102,51 @@ func (c *Runtime) Path() string {
 	return c.criSocketAddress
 }
 
-// CreateContainer will create a container instance matching the specific needs
-// No pod sandbox is created.
-func (c *Runtime) CreateContainer(ctx context.Context, name, image, cmdOverride string, trace bool) (*Container, error) {
+// PullImage pulls an image
+func (c *Runtime) PullImage(ctx context.Context, image string) error {
 	if status, err := (*c.imageClient).ImageStatus(ctx, &criapi.ImageStatusRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil || status.Image == nil {
 		if _, err := (*c.imageClient).PullImage(ctx, &criapi.PullImageRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	if status, err := (*c.imageClient).ImageStatus(ctx, &criapi.ImageStatusRequest{Image: &criapi.ImageSpec{Image: defaultPauseImage}}); err != nil || status.Image == nil {
 		if _, err := (*c.imageClient).PullImage(ctx, &criapi.PullImageRequest{Image: &criapi.ImageSpec{Image: defaultPauseImage}}); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	containerObj := &Container{
-		name:        name,
-		imageName:   image,
-		cmdOverride: cmdOverride,
-		trace:       trace,
-	}
-
-	return containerObj, nil
+	return nil
 }
 
-// CreatePodAndContainer will create a container instance inside a pod
-func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOverride string, trace bool) (*Pod, error) {
-	if status, err := (*c.imageClient).ImageStatus(ctx, &criapi.ImageStatusRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil || status.Image == nil {
-		if _, err := (*c.imageClient).PullImage(ctx, &criapi.PullImageRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil {
-			return nil, err
-		}
+// CreateContainer creates a container in the specified pod
+func (c *Runtime) CreateContainer(podSandBoxID string, config *criapi.ContainerConfig, sandboxConfig *criapi.PodSandboxConfig) (time.Duration, string, error) {
+	start := time.Now()
+	ctx, cancel := getContextWithTimeout(c.timeout)
+	defer cancel()
+
+	resp, err := (*c.runtimeClient).CreateContainer(ctx, &criapi.CreateContainerRequest{
+		PodSandboxId:  podSandBoxID,
+		Config:        config,
+		SandboxConfig: sandboxConfig,
+	})
+	if err != nil {
+		return 0, "", err
 	}
 
-	if status, err := (*c.imageClient).ImageStatus(ctx, &criapi.ImageStatusRequest{Image: &criapi.ImageSpec{Image: defaultPauseImage}}); err != nil || status.Image == nil {
-		if _, err := (*c.imageClient).PullImage(ctx, &criapi.PullImageRequest{Image: &criapi.ImageSpec{Image: defaultPauseImage}}); err != nil {
-			return nil, err
-		}
+	if resp.ContainerId == "" {
+		errorMessage := fmt.Sprintf("ContainerId is not set for container %q", config.GetMetadata())
+		return 0, "", errors.New(errorMessage)
 	}
+
+	elapsed := time.Since(start)
+	return elapsed, resp.ContainerId, nil
+}
+
+// CreatePodAndContainer simple helper function that will create a container instance inside a new pod instance
+// Maybe should go away for a helper function off the `Runntime` Object and in some utillity
+func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOverride string, trace bool) (*Pod, error) {
+
+	c.PullImage(ctx, image)
 
 	pconfig := pconfigGlobal
 	pconfig.Metadata.Name = defaultPodNamePrefix + name
@@ -148,19 +158,17 @@ func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOve
 
 	cconfig := cconfigGlobal
 	cconfig.Image.Image = image
+	cconfig.Command = strings.Split(cmdOverride, " ")
 	cconfig.Metadata.Name = name
 
-	containerInfo, err := (*c.runtimeClient).CreateContainer(ctx, &criapi.CreateContainerRequest{PodSandboxId: podInfo.PodSandboxId, Config: &cconfig, SandboxConfig: &pconfig})
-	if err != nil {
-		return nil, err
-	}
+	_, containerID, err := c.CreateContainer(podInfo.PodSandboxId, &cconfig, &pconfig)
 
 	containerObj := &Container{
 		name:        name,
 		imageName:   image,
 		cmdOverride: cmdOverride,
 		trace:       trace,
-		containerID: containerInfo.ContainerId,
+		containerID: containerID,
 	}
 
 	pod := &Pod{

@@ -39,7 +39,7 @@ func RootCmd() *cobra.Command {
 
 func runContainerCmd(cmd *cobra.Command, args []string) {
 
-	rt, err := cri.NewRuntime("/var/run/crio/crio.sock")
+	rt, err := cri.NewRuntime("/var/run/crio/crio.sock", 30*time.Second)
 
 	if err != nil {
 		fmt.Println(err)
