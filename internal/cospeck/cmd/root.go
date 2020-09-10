@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"time"
 
 	"github.com/Klaven/cospeck/internal/cospeck/utils"
+	"github.com/Klaven/cospeck/internal/runtime/cri"
 	"github.com/spf13/cobra"
 )
 
@@ -14,24 +16,72 @@ type Flags struct {
 	CreateCluster bool
 }
 
+// RootCmd is the root command builder thing
 func RootCmd() *cobra.Command {
 	flags := &Flags{}
 
 	cmd := &cobra.Command{
 		Use:   "cospeck",
 		Short: "A container runtime speed test",
-		Run:   rootCmd,
+		Run:   runContainerCmd,
 	}
 
 	// subcommands
 	cmd.AddCommand(testCmd())
 
 	// Flags
-	cmd.PersistentFlags().StringVarP(&flags.Runtime, "runtime", "r", "docker", "Runtime to use {cri-o|docker}")
+	cmd.PersistentFlags().StringVarP(&flags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")
 	// really I would like to take the kubernetes cluster out of it eventually. but right now it makes some things easy
 	cmd.PersistentFlags().BoolP("create-runtime", "c", true, "Create a cluster")
 
 	return cmd
+}
+
+func runContainerCmd(cmd *cobra.Command, args []string) {
+
+	rt, err := cri.NewRuntime("/var/run/crio/crio.sock")
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ctx := context.Background()
+
+	rt.Clean(ctx)
+
+	ct, err := rt.CreatePodAndContainer(ctx, "nginx-pod", "docker.io/library/alpine:latest", "/bin/bash sleep 5000", false)
+
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("error here fool")
+		return
+	}
+
+	_, err = rt.Run(ctx, *(ct.GetContainer("nginx-pod")))
+
+	if err != nil {
+		fmt.Println("error starting container you dumb dumb: ", err)
+	}
+
+	time.Sleep(30 * time.Second)
+
+	duration, err := rt.StopPod(ctx, ct)
+	if err != nil {
+		fmt.Println("duration:", duration)
+		fmt.Println(err)
+	}
+	/*
+		duration, err = rt.Remove(ctx, ct)
+		if err != nil {
+			fmt.Println(thing)
+			fmt.Println("duration:", duration)
+			fmt.Println(err)
+		}
+	*/
+	rt.RemovePod(ctx, ct)
+
+	rt.Clean(ctx)
 }
 
 func rootCmd(cmd *cobra.Command, args []string) {
