@@ -7,13 +7,15 @@ func nodeBusterCmd(flags *Flags) *cobra.Command {
 		Use:   "test",
 		Short: "Test your nodes container runtime, to it's limits",
 		Long:  "Test your container runtime, to it's limits! \n WARNING, do not run this on a node that is running production anything!!!!",
-		Run:   testRunner,
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeBusterRunner(flags)
+		},
 	}
 
 	return cmd
 }
 
 // nodeBusterRunner will try and break your node
-func nodeBusterRunner(cmd *cobra.Command, args []string) {
+func nodeBusterRunner(flags *Flags) {
 
 }

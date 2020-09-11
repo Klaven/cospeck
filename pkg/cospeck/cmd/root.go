@@ -8,9 +8,11 @@ import (
 
 	"github.com/Klaven/cospeck/internal/cospeck/utils"
 	"github.com/Klaven/cospeck/internal/runtime/cri"
+	"github.com/Klaven/cospeck/internal/tests"
 	"github.com/spf13/cobra"
 )
 
+// Flags represent cmd line flags
 type Flags struct {
 	Runtime       string
 	CreateCluster bool
@@ -18,7 +20,8 @@ type Flags struct {
 
 // RootCmd is the root command builder thing
 func RootCmd() *cobra.Command {
-	flags := &Flags{}
+	globalFlags := &Flags{}
+	testFlags := &tests.TestFlags{}
 
 	cmd := &cobra.Command{
 		Use:   "cospeck",
@@ -27,11 +30,11 @@ func RootCmd() *cobra.Command {
 	}
 
 	// subcommands
-	cmd.AddCommand(testCmd(flags))
-	cmd.AddCommand(nodeBusterCmd(*flags))
+	cmd.AddCommand(testCmd(globalFlags, testFlags))
+	cmd.AddCommand(nodeBusterCmd(globalFlags))
 
 	// Flags
-	cmd.PersistentFlags().StringVarP(&flags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")
+	cmd.PersistentFlags().StringVarP(&globalFlags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")
 	// really I would like to take the kubernetes cluster out of it eventually. but right now it makes some things easy
 	cmd.PersistentFlags().BoolP("create-runtime", "c", true, "Create a cluster")
 
