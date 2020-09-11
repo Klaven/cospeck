@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func testCmd() *cobra.Command {
+func testCmd(flags *Flags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "test",

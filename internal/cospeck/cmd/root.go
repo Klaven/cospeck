@@ -27,7 +27,8 @@ func RootCmd() *cobra.Command {
 	}
 
 	// subcommands
-	cmd.AddCommand(testCmd())
+	cmd.AddCommand(testCmd(flags))
+	cmd.AddCommand(nodeBusterCmd(*flags))
 
 	// Flags
 	cmd.PersistentFlags().StringVarP(&flags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")
