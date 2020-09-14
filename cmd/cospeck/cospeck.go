@@ -1,6 +1,6 @@
 package cospeck
 
-import "github.com/Klaven/cospeck/internal/cospeck/cmd"
+import "github.com/Klaven/cospeck/pkg/cospeck/cmd"
 
 // Run our cmd
 func Run() {
