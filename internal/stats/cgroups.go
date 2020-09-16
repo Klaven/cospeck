@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/containerd/cgroups"
+	v1 "github.com/containerd/cgroups/stats/v1"
 	"github.com/pkg/errors"
 )
 
@@ -52,18 +53,25 @@ func (s *CGroupsSampler) Sample() (*Metrics, error) {
 
 	// memory.memsw.usage_in_bytes (current usage for memory+swap) + memory.kmem.usage_in_bytes (current
 	// kernel memory allocation)
-	mem := (memStat.Swap.Usage + memStat.Kernel.Usage) / bytesInMiB
+	mem := (memStat.TotalRSS) /// bytesInMiB
 	cpu := metrics.CPU.Usage.Total
 
 	now := time.Now()
 
-	cpuUsage := float64(cpu-s.lastCPUUsage) / float64(now.Sub(s.lastCPUTime).Nanoseconds())
+	cpuUsage := float64(cpu - s.lastCPUUsage) // float64(now.Sub(s.lastCPUTime).Nanoseconds())
+	cpuPercent := cpuUsage / float64(now.Sub(s.lastCPUTime).Nanoseconds())
 
 	s.lastCPUUsage = cpu
 	s.lastCPUTime = now
 
 	return &Metrics{
-		Mem: mem,
-		CPU: cpuUsage,
+		Mem:        mem,
+		CPU:        cpuUsage,
+		CPUPercent: cpuPercent,
 	}, nil
+}
+
+// Stat gets the stats
+func (s *CGroupsSampler) Stat() (*v1.Metrics, error) {
+	return s.control.Stat()
 }

@@ -4,8 +4,9 @@ const bytesInMiB = 1024 * 1024
 
 // Metrics represents stats sample from daemon
 type Metrics struct {
-	Mem uint64
-	CPU float64
+	Mem        uint64
+	CPU        float64
+	CPUPercent float64
 }
 
 // Process represents an interfaces of a daemon to be sampled

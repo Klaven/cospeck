@@ -26,15 +26,14 @@ func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cospeck",
 		Short: "A container runtime speed test",
-		Run:   runContainerCmd,
 	}
 
 	// subcommands
-	cmd.AddCommand(testCmd(globalFlags, testFlags))
-	cmd.AddCommand(nodeBusterCmd(globalFlags))
+	cmd.AddCommand(testCmd(globalFlags, testFlags), nodeBusterCmd(globalFlags))
 
 	// Flags
 	cmd.PersistentFlags().StringVarP(&globalFlags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")
+
 	// really I would like to take the kubernetes cluster out of it eventually. but right now it makes some things easy
 	cmd.PersistentFlags().BoolP("create-runtime", "c", true, "Create a cluster")
 
