@@ -11,4 +11,4 @@ compile:
 	GOOS=freebsd GOARCH=386 go build -o out/cospeck-freebsd-386 main.go
 
 install:
-    go build -o ${GOPATH}/bin/cospeck main.go
+	go build -o ${GOPATH}/bin/cospeck main.go
