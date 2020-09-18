@@ -2,11 +2,11 @@ package cri
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/ghodss/yaml"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/rbac/v1beta1"
-	"k8s.io/client-go/kubernetes/scheme"
 	criapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
@@ -21,45 +21,34 @@ func getContextWithTimeout(timeout time.Duration) (context.Context, context.Canc
 
 // ParseYamlFile parses a pods yaml file
 func ParseYamlFile(file []byte) (*criapi.PodSandboxConfig, []criapi.ContainerConfig, error) {
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	obj, _, err := decode([]byte(file), nil, nil)
 
+	var spec v1.Pod
+	err := yaml.Unmarshal(file, &spec)
+	if err != nil {
+		panic(err.Error())
+	}
+	pod, err := loadPodSandboxConfig(defaultSandboxConfig)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	pod := &criapi.PodSandboxConfig{}
 	containers := []criapi.ContainerConfig{}
-	// now use switch over the type of the object
-	// and match each type-case
-	switch o := obj.(type) {
-	case *v1.Pod:
-		pod.Metadata.Name = o.Name
 
-		for _, container := range o.Spec.Containers {
-			c := criapi.ContainerConfig{
-				Args:    container.Args,
-				Command: container.Command,
-				Image: &criapi.ImageSpec{
-					Image: container.Image,
-				},
-				Metadata: &criapi.ContainerMetadata{
-					Name: container.Name,
-				},
-			}
+	pod.Metadata.Name = spec.Name
 
-			containers = append(containers, c)
+	for _, container := range spec.Spec.Containers {
+		c, err := loadContainerConfig(defaultContainerConfig)
+		if err != nil {
+			return nil, nil, err
 		}
-		// o is a pod
-	case *v1beta1.Role:
-		// o is the actual role Object with all fields etc
-	case *v1beta1.RoleBinding:
-	case *v1beta1.ClusterRole:
-	case *v1beta1.ClusterRoleBinding:
-	case *v1.ServiceAccount:
-	default:
-		//o is unknown for us
+		c.Args = container.Args
+		c.Command = container.Command
+		c.Image.Image = container.Image
+		c.Metadata.Name = container.Name
+
+		fmt.Println("image to start: ", container.Image)
+
+		containers = append(containers, c)
 	}
 
-	return pod, containers, nil
+	return &pod, containers, nil
 }

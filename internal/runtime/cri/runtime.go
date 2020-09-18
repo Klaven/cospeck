@@ -196,14 +196,24 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName st
 	}
 	p, con, err := ParseYamlFile(yamlFile)
 
+	if err != nil {
+		fmt.Println("Foolish human: ", err)
+		return nil, err
+	}
 	number++
 	p.Metadata.Name = defaultPodNamePrefix + strconv.Itoa(number) + p.Metadata.Name
 
 	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: p})
 
+	if err != nil {
+		fmt.Println("Much Wow, Much Foolish: ", err)
+		return nil, err
+	}
+
 	containers := []*Container{}
 
 	for _, contain := range con {
+		c.PullImage(ctx, contain.Image.Image)
 		cconfig := cconfigGlobal
 		cconfig.Image.Image = contain.Image.Image
 		cconfig.Command = contain.Command
