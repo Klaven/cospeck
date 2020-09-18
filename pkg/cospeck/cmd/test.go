@@ -33,7 +33,12 @@ func GeneralTest(testFlags *tests.TestFlags) *cobra.Command {
 		},
 	}
 
+	// Flags - maybe we should just use a config file for half of these.
 	cmd.Flags().IntVarP(&pods, "Pods", "p", 100, "Number of pods to use when testing memory")
+	cmd.Flags().StringVarP(&testFlags.OCIRuntime, "Runtime", "r", "/var/run/crio/crio.sock", "The location of the runtime socket to use")
+	cmd.Flags().StringVarP(&testFlags.Tests, "Tests", "t", "", "run only one test")
+	cmd.Flags().StringVarP(&testFlags.Tests, "CGroupPath", "c", "/system.slice/crio.service", "Path to the cgroup")
+	cmd.Flags().StringVarP(&testFlags.PodConfigFile, "PodConfigFile", "-p", "", "A file to use a custom pod spec")
 
 	return cmd
 }

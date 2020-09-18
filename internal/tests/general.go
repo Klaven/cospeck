@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/Klaven/cospeck/internal/runtime/cri"
@@ -27,13 +26,14 @@ func Find(a []testPod, x *cri.Pod) int {
 	return len(a)
 }
 
+// GeneralTest is a very basic general test of memory and CPU
 func GeneralTest(testFlags *TestFlags, totalPods int) {
 	fmt.Println("Running tests")
 
 	pods := []testPod{}
 
-	sampler, err := stats.NewCGroupsSampler("/system.slice/crio.service")
-	rt, err := cri.NewRuntime("/var/run/crio/crio.sock", 30*time.Second)
+	sampler, err := stats.NewCGroupsSampler(testFlags.CGroupPath)
+	rt, err := cri.NewRuntime(testFlags.OCIRuntime, 30*time.Second)
 	ctx := context.Background()
 
 	rt.Clean(ctx)
@@ -51,11 +51,13 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 			return
 		}
 
-		s := strconv.Itoa(i)
+		///s := strconv.Itoa(i)
 
-		podName := "nginx-" + s + "-pod"
+		//podName := "nginx-" + s + "-pod"
 
-		ct, err := rt.CreatePodAndContainer(ctx, podName, "docker.io/library/alpine:latest", "sleep 5000", false)
+		//ct, err := rt.CreatePodAndContainer(ctx, podName, "docker.io/library/alpine:latest", "sleep 5000", false)
+
+		ct, err := rt.CreatePodAndContainerFromSpec(ctx, testFlags.PodConfigFile)
 
 		if err != nil {
 			fmt.Println(err)
@@ -63,12 +65,21 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 			return
 		}
 
-		startDeration, err := rt.Run(ctx, *(ct.GetContainer(podName)))
-		totalStart += startDeration.Milliseconds()
-		if err != nil {
-			fmt.Println("error starting container you dumb dumb: ", err)
+		var startDeration time.Duration
+		for _, c := range ct.Containers() {
+			startDeration, err = rt.Run(ctx, *c)
+			totalStart += startDeration.Milliseconds()
+			if err != nil {
+				fmt.Println("error starting container you dumb dumb: ", err)
+			}
 		}
-
+		/*
+			startDeration, err := rt.Run(ctx, *(ct.GetContainer(podName)))
+			totalStart += startDeration.Milliseconds()
+			if err != nil {
+				fmt.Println("error starting container you dumb dumb: ", err)
+			}
+		*/
 		pods = append(pods, testPod{
 			Pod:          ct,
 			CreationTime: startDeration,

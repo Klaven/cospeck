@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,11 +23,13 @@ const (
 	defaultPodNamePrefix   = "pod"
 	defaultSandboxConfig   = "config/sandbox.json"
 	defaultContainerConfig = "config/container.json"
+	defaultPodConfig       = "config/pod.yaml"
 )
 
 var (
 	pconfigGlobal criapi.PodSandboxConfig
 	cconfigGlobal criapi.ContainerConfig
+	number        = 0
 )
 
 // Runtime is an implementation of the cri API
@@ -179,6 +183,48 @@ func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOve
 		name:       pconfig.Metadata.Name,
 		podID:      podInfo.PodSandboxId,
 		containers: []*Container{containerObj},
+	}
+	return pod, nil
+}
+
+// CreatePodAndContainerFromSpec simple helper function to create a pod and it's contaienrs from a spec
+func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName string) (*Pod, error) {
+	yamlFile, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		fmt.Printf("Error reading YAML file: %s\n", err)
+		return nil, err
+	}
+	p, con, err := ParseYamlFile(yamlFile)
+
+	number++
+	p.Metadata.Name = defaultPodNamePrefix + strconv.Itoa(number) + p.Metadata.Name
+
+	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: p})
+
+	containers := []*Container{}
+
+	for _, contain := range con {
+		cconfig := cconfigGlobal
+		cconfig.Image.Image = contain.Image.Image
+		cconfig.Command = contain.Command
+		cconfig.Metadata.Name = contain.Metadata.Name
+		_, containerID, err := c.CreateContainer(podInfo.PodSandboxId, &contain, p)
+		if err != nil {
+			fmt.Println("error creating container: ", err)
+			continue
+		}
+		containers = append(containers,
+			&Container{
+				name:        contain.Metadata.Name,
+				imageName:   contain.Image.Image,
+				containerID: containerID,
+			})
+	}
+
+	pod := &Pod{
+		name:       p.Metadata.Name,
+		podID:      podInfo.PodSandboxId,
+		containers: containers,
 	}
 	return pod, nil
 }
