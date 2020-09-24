@@ -9,8 +9,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -26,26 +24,30 @@ const (
 	defaultPodConfig       = "config/pod.yaml"
 )
 
-var (
-	pconfigGlobal criapi.PodSandboxConfig
-	cconfigGlobal criapi.ContainerConfig
-	number        = 0
-)
-
 // Runtime is an implementation of the cri API
 type Runtime struct {
-	criSocketAddress string
-	runtimeClient    *criapi.RuntimeServiceClient
-	imageClient      *criapi.ImageServiceClient
-	pconfig          criapi.PodSandboxConfig
-	cconfig          criapi.ContainerConfig
-	timeout          time.Duration
+	criSocketAddress    string
+	runtimeClient       *criapi.RuntimeServiceClient
+	imageClient         *criapi.ImageServiceClient
+	baseSandboxConfig   string
+	baseContainerConfig string
+	timeout             time.Duration
 }
 
 // NewRuntime creates an instance of the CRI runtime
-func NewRuntime(path string, timeout time.Duration) (*Runtime, error) {
+func NewRuntime(path string, timeout time.Duration, baseContainerConfig, baseSandboxConfig *string) (*Runtime, error) {
 	if path == "" {
 		return nil, fmt.Errorf("socket path unspecified")
+	}
+
+	bcc := baseContainerConfig
+	if baseContainerConfig != nil {
+		bcc = baseContainerConfig
+	}
+
+	bsc := baseSandboxConfig
+	if baseSandboxConfig != nil {
+		bcc = baseSandboxConfig
 	}
 
 	conn, err := getGRPCConn(path, time.Duration(10*time.Second))
@@ -56,23 +58,13 @@ func NewRuntime(path string, timeout time.Duration) (*Runtime, error) {
 	runtimeClient := criapi.NewRuntimeServiceClient(conn)
 	imageClient := criapi.NewImageServiceClient(conn)
 
-	pconfig, err := loadPodSandboxConfig(defaultSandboxConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	cconfig, err := loadContainerConfig(defaultContainerConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	runtime := &Runtime{
-		criSocketAddress: path,
-		runtimeClient:    &runtimeClient,
-		imageClient:      &imageClient,
-		cconfig:          cconfig,
-		pconfig:          pconfig,
-		timeout:          timeout,
+		criSocketAddress:    path,
+		runtimeClient:       &runtimeClient,
+		imageClient:         &imageClient,
+		baseContainerConfig: *bcc,
+		baseSandboxConfig:   *bsc,
+		timeout:             timeout,
 	}
 
 	return runtime, nil
@@ -146,49 +138,8 @@ func (c *Runtime) CreateContainer(podSandBoxID string, config *criapi.ContainerC
 	return elapsed, resp.ContainerId, nil
 }
 
-// CreatePodAndContainer simple helper function that will create a container instance inside a new pod instance
-// Maybe should go away for a helper function off the `Runntime` Object and in some utillity
-func (c *Runtime) CreatePodAndContainer(ctx context.Context, name, image, cmdOverride string, trace bool) (*Pod, error) {
-
-	c.PullImage(ctx, image)
-
-	pconfig := pconfigGlobal
-	pconfig.Metadata.Name = defaultPodNamePrefix + name
-
-	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: &pconfig})
-	if err != nil {
-		return nil, err
-	}
-
-	cconfig := cconfigGlobal
-	cconfig.Image.Image = image
-	cconfig.Command = strings.Split(cmdOverride, " ")
-	cconfig.Metadata.Name = name
-
-	_, containerID, err := c.CreateContainer(podInfo.PodSandboxId, &cconfig, &pconfig)
-
-	if err != nil {
-		return nil, err
-	}
-
-	containerObj := &Container{
-		name:        name,
-		imageName:   image,
-		cmdOverride: cmdOverride,
-		trace:       trace,
-		containerID: containerID,
-	}
-
-	pod := &Pod{
-		name:       pconfig.Metadata.Name,
-		podID:      podInfo.PodSandboxId,
-		containers: []*Container{containerObj},
-	}
-	return pod, nil
-}
-
 // CreatePodAndContainerFromSpec simple helper function to create a pod and it's contaienrs from a spec
-func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName string) (*Pod, error) {
+func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName string, uid string) (*Pod, error) {
 	yamlFile, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		fmt.Printf("Error reading YAML file: %s\n", err)
@@ -200,8 +151,8 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName st
 		fmt.Println("Foolish human: ", err)
 		return nil, err
 	}
-	number++
-	p.Metadata.Name = defaultPodNamePrefix + strconv.Itoa(number) + p.Metadata.Name
+
+	p.Metadata.Name = defaultPodNamePrefix + p.Metadata.Name + uid
 
 	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: p})
 
@@ -214,7 +165,12 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName st
 
 	for _, contain := range con {
 		c.PullImage(ctx, contain.Image.Image)
-		cconfig := cconfigGlobal
+		cconfig, err := loadContainerConfig(c.baseContainerConfig)
+
+		if err != nil {
+			fmt.Println("error reading in default pod file")
+		}
+
 		cconfig.Image.Image = contain.Image.Image
 		cconfig.Command = contain.Command
 		cconfig.Metadata.Name = contain.Metadata.Name
@@ -241,7 +197,11 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName st
 
 // CreatePod will create a Pod with no containers to be used later
 func (c *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
-	pconfig := pconfigGlobal
+	pconfig, err := loadPodSandboxConfig(c.baseSandboxConfig)
+	if err != nil {
+		fmt.Println("Error reading pod sandbox config: ", err)
+		return nil, err
+	}
 	pconfig.Metadata.Name = defaultPodNamePrefix + name
 
 	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: &pconfig})
@@ -416,10 +376,12 @@ func loadPodSandboxConfig(path string) (criapi.PodSandboxConfig, error) {
 	}
 	defer f.Close()
 
-	if err := json.NewDecoder(f).Decode(&pconfigGlobal); err != nil {
+	var config criapi.PodSandboxConfig
+
+	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		return criapi.PodSandboxConfig{}, err
 	}
-	return pconfigGlobal, nil
+	return config, nil
 }
 
 func loadContainerConfig(path string) (criapi.ContainerConfig, error) {
@@ -429,8 +391,10 @@ func loadContainerConfig(path string) (criapi.ContainerConfig, error) {
 	}
 	defer f.Close()
 
-	if err := json.NewDecoder(f).Decode(&cconfigGlobal); err != nil {
+	var config criapi.ContainerConfig
+
+	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		return criapi.ContainerConfig{}, err
 	}
-	return cconfigGlobal, nil
+	return config, nil
 }

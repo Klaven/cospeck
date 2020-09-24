@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/Klaven/cospeck/internal/tests"
 	"github.com/spf13/cobra"
 )
@@ -39,14 +37,7 @@ func GeneralTest(testFlags *tests.TestFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&testFlags.Tests, "Tests", "t", "", "run only one test")
 	cmd.Flags().StringVarP(&testFlags.CGroupPath, "CGroupPath", "", "/system.slice/crio.service", "Path to the cgroup")
 	cmd.Flags().StringVarP(&testFlags.PodConfigFile, "PodConfigFile", "", "", "A file to use a custom pod spec")
+	cmd.Flags().IntVarP(&testFlags.Threads, "threads", "", 5, "how many concurant threads to use.")
 
 	return cmd
-}
-
-func testRunner(flags *Flags, testFlags *tests.TestFlags) {
-	fmt.Println("Running tests")
-
-	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
-	//TODO: fail if not clean
-
 }

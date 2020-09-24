@@ -6,4 +6,5 @@ type TestFlags struct {
 	OCIRuntime    string
 	CGroupPath    string
 	PodConfigFile string
+	Threads       int
 }

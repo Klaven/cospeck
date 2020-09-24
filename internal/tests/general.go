@@ -3,6 +3,8 @@ package tests
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Klaven/cospeck/internal/runtime/cri"
@@ -26,14 +28,27 @@ func Find(a []testPod, x *cri.Pod) int {
 	return len(a)
 }
 
+var (
+	mutex = &sync.Mutex{}
+	pods  = make([]testPod, 0)
+)
+
 // GeneralTest is a very basic general test of memory and CPU
 func GeneralTest(testFlags *TestFlags, totalPods int) {
 	fmt.Println("Running tests")
 
-	pods := []testPod{}
-
 	sampler, err := stats.NewCGroupsSampler(testFlags.CGroupPath)
-	rt, err := cri.NewRuntime(testFlags.OCIRuntime, 30*time.Second)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	rt, err := cri.NewRuntime(testFlags.OCIRuntime, 30*time.Second, nil, nil)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	ctx := context.Background()
 
 	rt.Clean(ctx)
@@ -44,46 +59,22 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 	var totalStart int64 = 0
 	fmt.Println("Starting Pods")
+
+	threadsRemaining := testFlags.Threads
+	finished := make(chan int)
 	for i := 0; i < totalPods; i++ {
 
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		///s := strconv.Itoa(i)
-
-		//podName := "nginx-" + s + "-pod"
-
-		//ct, err := rt.CreatePodAndContainer(ctx, podName, "docker.io/library/alpine:latest", "sleep 5000", false)
-
-		ct, err := rt.CreatePodAndContainerFromSpec(ctx, testFlags.PodConfigFile)
-
-		if err != nil {
-			fmt.Println(err)
-			fmt.Println("error here fool")
-			return
-		}
-
-		var startDeration time.Duration
-		for _, c := range ct.Containers() {
-			startDeration, err = rt.Run(ctx, *c)
-			totalStart += startDeration.Milliseconds()
-			if err != nil {
-				fmt.Println("error starting container you dumb dumb: ", err)
+		if threadsRemaining <= 0 {
+			select {
+			case <-finished:
+				threadsRemaining++
+				continue
 			}
 		}
-		/*
-			startDeration, err := rt.Run(ctx, *(ct.GetContainer(podName)))
-			totalStart += startDeration.Milliseconds()
-			if err != nil {
-				fmt.Println("error starting container you dumb dumb: ", err)
-			}
-		*/
-		pods = append(pods, testPod{
-			Pod:          ct,
-			CreationTime: startDeration,
-		})
+		fmt.Println("starting pod number: ", i)
+		threadsRemaining--
+		runNumberAsString := strconv.Itoa(-42)
+		go createPod(ctx, rt, testFlags.PodConfigFile, runNumberAsString, finished)
 	}
 
 	println("Finished Starting Pods")
@@ -137,4 +128,31 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
 	//TODO: fail if not clean
 
+}
+
+func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished chan int) {
+	start := time.Now()
+	ct, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
+
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("error here fool")
+		return
+	}
+
+	for _, c := range ct.Containers() {
+		_, err = runtime.Run(ctx, *c)
+		if err != nil {
+			fmt.Println("error starting container you dumb dumb: ", err)
+		}
+	}
+
+	elapsed := time.Since(start)
+	mutex.Lock()
+	pods = append(pods, testPod{
+		Pod:          ct,
+		CreationTime: elapsed,
+	})
+	mutex.Unlock()
+	finished <- 1
 }
