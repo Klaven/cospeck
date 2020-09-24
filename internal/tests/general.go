@@ -9,6 +9,7 @@ import (
 
 	"github.com/Klaven/cospeck/internal/runtime/cri"
 	"github.com/Klaven/cospeck/internal/stats"
+	"github.com/tidwall/limiter"
 )
 
 type testPod struct {
@@ -60,21 +61,13 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	var totalStart int64 = 0
 	fmt.Println("Starting Pods")
 
-	threadsRemaining := testFlags.Threads
-	finished := make(chan int)
-	for i := 0; i < totalPods; i++ {
+	l := limiter.New(testFlags.Threads)
 
-		if threadsRemaining <= 0 {
-			select {
-			case <-finished:
-				threadsRemaining++
-				continue
-			}
-		}
+	for i := 0; i < totalPods; i++ {
 		fmt.Println("starting pod number: ", i)
-		threadsRemaining--
-		runNumberAsString := strconv.Itoa(-42)
-		go createPod(ctx, rt, testFlags.PodConfigFile, runNumberAsString, finished)
+		runNumberAsString := strconv.Itoa(i)
+		l.Begin()
+		go createPod(ctx, rt, testFlags.PodConfigFile, runNumberAsString, l)
 	}
 
 	println("Finished Starting Pods")
@@ -106,13 +99,8 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	fmt.Println("")
 	fmt.Println("Stopping Pods")
 	for _, p := range pods {
-		duration, err := rt.StopPod(ctx, p.Pod)
-		if err != nil {
-			fmt.Println("duration:", duration)
-			fmt.Println(err)
-		}
-		totalStopping += duration.Milliseconds()
-		p.DestructionTime = duration
+		l.Begin()
+		stopPod(ctx, rt, &p, l)
 	}
 
 	fmt.Println("")
@@ -130,7 +118,18 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 }
 
-func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished chan int) {
+func stopPod(ctx context.Context, runtime *cri.Runtime, pod *testPod, finished *limiter.Limiter) {
+	defer finished.End()
+	duration, err := runtime.StopPod(ctx, pod.Pod)
+	if err != nil {
+		fmt.Println("duration:", duration)
+		fmt.Println(err)
+	}
+	pod.DestructionTime = duration
+}
+
+func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) {
+	defer finished.End()
 	start := time.Now()
 	ct, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
 
@@ -154,5 +153,4 @@ func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, 
 		CreationTime: elapsed,
 	})
 	mutex.Unlock()
-	finished <- 1
 }

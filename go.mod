@@ -10,6 +10,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
+	github.com/tidwall/limiter v0.0.0-20181220020158-fcddc63bb521
 	golang.org/x/sys v0.0.0-20200810151505-1b9f1253b3ed // indirect
 	google.golang.org/genproto v0.0.0-20200808173500-a06252235341 // indirect
 	google.golang.org/grpc v1.31.0

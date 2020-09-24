@@ -32,6 +32,7 @@ type Runtime struct {
 	baseSandboxConfig   string
 	baseContainerConfig string
 	timeout             time.Duration
+	baseYaml            []byte
 }
 
 // NewRuntime creates an instance of the CRI runtime
@@ -40,14 +41,14 @@ func NewRuntime(path string, timeout time.Duration, baseContainerConfig, baseSan
 		return nil, fmt.Errorf("socket path unspecified")
 	}
 
-	bcc := baseContainerConfig
+	bcc := defaultContainerConfig
 	if baseContainerConfig != nil {
-		bcc = baseContainerConfig
+		bcc = *baseContainerConfig
 	}
 
-	bsc := baseSandboxConfig
+	bsc := defaultSandboxConfig
 	if baseSandboxConfig != nil {
-		bcc = baseSandboxConfig
+		bsc = *baseSandboxConfig
 	}
 
 	conn, err := getGRPCConn(path, time.Duration(10*time.Second))
@@ -62,8 +63,8 @@ func NewRuntime(path string, timeout time.Duration, baseContainerConfig, baseSan
 		criSocketAddress:    path,
 		runtimeClient:       &runtimeClient,
 		imageClient:         &imageClient,
-		baseContainerConfig: *bcc,
-		baseSandboxConfig:   *bsc,
+		baseContainerConfig: bcc,
+		baseSandboxConfig:   bsc,
 		timeout:             timeout,
 	}
 
@@ -139,7 +140,7 @@ func (c *Runtime) CreateContainer(podSandBoxID string, config *criapi.ContainerC
 }
 
 // CreatePodAndContainerFromSpec simple helper function to create a pod and it's contaienrs from a spec
-func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName string, uid string) (*Pod, error) {
+func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, uid string) (*Pod, error) {
 	yamlFile, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		fmt.Printf("Error reading YAML file: %s\n", err)
