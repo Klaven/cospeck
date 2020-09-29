@@ -128,21 +128,21 @@ func stopPod(ctx context.Context, runtime *cri.Runtime, pod *testPod, finished *
 	pod.DestructionTime = duration
 }
 
-func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) {
+func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) error {
 	defer finished.End()
 	start := time.Now()
 	ct, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
 
 	if err != nil {
 		fmt.Println(err)
-		fmt.Println("error here fool")
-		return
+		return err
 	}
 
 	for _, c := range ct.Containers() {
 		_, err = runtime.Run(ctx, *c)
 		if err != nil {
 			fmt.Println("error starting container you dumb dumb: ", err)
+			return err
 		}
 	}
 
@@ -153,4 +153,5 @@ func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, 
 		CreationTime: elapsed,
 	})
 	mutex.Unlock()
+	return nil
 }

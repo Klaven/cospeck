@@ -3,7 +3,7 @@ a speed test for contaienr runtimes COntainer SPeed chECK
 
 This is a pre-alpha bit of code. use it at your own risk.
 
-Huge shoutout too the work done https://github.com/estesp/bucketbench while this project does not seem maintained anylonger, it has provided the base for the cri-o runtime implementation. Strong work.
+Huge shoutout too the work done https://github.com/estesp/bucketbench while this project does not seem maintained anylonger, it has provided me the base of the cri runtime implementation. Thank you. I would not consider this a "fork" as it is quite different
 
 status: 
 
@@ -41,3 +41,13 @@ requirements:
 ### Streatch Goals
 
 Eventually it would be nice if you had multiple container runtimes installed and configured if it could switch between them for you. to let you see if there was a differance between 
+
+
+### Examples
+
+Docker:
+ 
+sudo ./out/cospeck test general --pod-configfile=./config/pod.yaml --runtime=/var/run/containerd/containerd.sock --cgroup-path=/system.slice/docker.service
+
+Crio:
+sudo ./out/cospect test general --pod-configfile=./config/pod.yaml

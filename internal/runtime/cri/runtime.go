@@ -149,7 +149,7 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, u
 	p, con, err := ParseYamlFile(yamlFile)
 
 	if err != nil {
-		fmt.Println("Foolish human: ", err)
+		fmt.Println("Error Parsing Yaml: ", err)
 		return nil, err
 	}
 
@@ -158,7 +158,7 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, u
 	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: p})
 
 	if err != nil {
-		fmt.Println("Much Wow, Much Foolish: ", err)
+		fmt.Println("Error Running Pod Sadbox: ", err)
 		return nil, err
 	}
 

@@ -53,7 +53,7 @@ func (s *CGroupsSampler) Sample() (*Metrics, error) {
 
 	// memory.memsw.usage_in_bytes (current usage for memory+swap) + memory.kmem.usage_in_bytes (current
 	// kernel memory allocation)
-	mem := (memStat.TotalRSS) /// bytesInMiB
+	mem := (memStat.TotalRSS) / bytesInMiB
 	cpu := metrics.CPU.Usage.Total
 
 	now := time.Now()
