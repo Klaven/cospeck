@@ -22,7 +22,7 @@ func RootCmd() *cobra.Command {
 	}
 
 	// subcommands
-	cmd.AddCommand(testCmd(globalFlags, testFlags), nodeBusterCmd(globalFlags))
+	cmd.AddCommand(testCmd(globalFlags, testFlags), nodeBusterCmd(globalFlags, testFlags))
 
 	// Flags
 	cmd.PersistentFlags().StringVarP(&globalFlags.Runtime, "runtime", "r", "/var/run/crio/crio.sock", "Runtime to use default: /var/run/crio/crio.sock")

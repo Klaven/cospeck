@@ -17,8 +17,9 @@ type NodeBusterResults struct {
 	Error   error
 }
 
-// NodeBusterTest is a very basic general test of memory and CPU
-func NodeBusterTest(testFlags *TestFlags, totalPods int) {
+// NodeBusterTest is a very basic test to try and see how many nodes can run on a machine.
+// DO NOT RUN ON A MACHINE RUNNING ANYTHING
+func NodeBusterTest(testFlags *TestFlags) {
 	fmt.Println("Running tests")
 	sampler, err := stats.NewCGroupsSampler(testFlags.CGroupPath)
 	if err != nil {
