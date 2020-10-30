@@ -54,11 +54,12 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 	rt.Clean(ctx)
 
-	initTotal, _ := sampler.Sample()
-	fmt.Println("Total CPU: ", initTotal.CPU)
-	fmt.Println("Total Memory: ", initTotal.Mem)
+	metrics := []stats.Metrics{}
 
-	var totalStart int64 = 0
+	initTotal, _ := sampler.Sample("init")
+
+	metrics = append(metrics, *initTotal)
+
 	fmt.Println("Starting Pods")
 
 	l := limiter.New(testFlags.Threads)
@@ -76,25 +77,14 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 		fmt.Println("Failed to get cgroup sampler")
 	}
 
-	total, err := sampler.Sample()
-	stat, err := sampler.Stat()
-	//TODO make some type of output printer
-	fmt.Println("Starting Total CPU: ", total.CPU)
-	fmt.Println("Starting Percent CPU: ", total.CPUPercent)
-	fmt.Println("Starting Total Memory: ", total.Mem)
-	fmt.Println("Starting Average Start Time: ", (totalStart / int64(totalPods)))
+	total, err := sampler.Sample("pods-created")
+	metrics = append(metrics, *total)
 
 	//Some time to just let things settle down... probably should be more accurate
 	time.Sleep(10 * time.Second)
 
-	total, err = sampler.Sample()
-	stat, err = sampler.Stat()
-	fmt.Println("10sec Total CPU: ", total.CPU)
-	fmt.Println("10sec Percent CPU: ", total.CPUPercent)
-	fmt.Println("10sec Total Memory: ", total.Mem)
-	fmt.Println("10sec Average Start Time: ", (totalStart / int64(totalPods)))
-
-	var totalStopping int64 = 0
+	total, err = sampler.Sample("sleep10")
+	metrics = append(metrics, *total)
 
 	fmt.Println("")
 	fmt.Println("Stopping Pods")
@@ -103,15 +93,8 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 		stopPod(ctx, rt, &p, l)
 	}
 
-	fmt.Println("")
-	fmt.Println("Stats: ", stat)
-	fmt.Println("")
-
-	fmt.Println("Total CPU: ", total.CPU)
-	fmt.Println("Percent CPU: ", total.CPUPercent)
-	fmt.Println("Total Memory: ", total.Mem)
-	fmt.Println("Average Start Time: ", (totalStart / int64(totalPods)))
-	fmt.Println("Average Stop Time: ", (totalStopping / int64(totalPods)))
+	total, err = sampler.Sample("stopping")
+	metrics = append(metrics, *total)
 
 	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
 	//TODO: fail if not clean

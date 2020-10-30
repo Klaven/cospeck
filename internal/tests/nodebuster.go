@@ -37,7 +37,7 @@ func NodeBusterTest(testFlags *TestFlags) {
 
 	rt.Clean(ctx)
 
-	initTotal, _ := sampler.Sample()
+	initTotal, _ := sampler.Sample("init")
 	fmt.Println("Total CPU: ", initTotal.CPU)
 	fmt.Println("Total Memory: ", initTotal.Mem)
 

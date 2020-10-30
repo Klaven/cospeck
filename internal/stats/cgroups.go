@@ -43,7 +43,7 @@ func reportControllers() ([]cgroups.Subsystem, error) {
 }
 
 // Sample gets a process metrics from control cgroup
-func (s *CGroupsSampler) Sample() (*Metrics, error) {
+func (s *CGroupsSampler) Sample(name string) (*Metrics, error) {
 	metrics, err := s.control.Stat(cgroups.IgnoreNotExist)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get metrics from cgroup")
@@ -65,6 +65,7 @@ func (s *CGroupsSampler) Sample() (*Metrics, error) {
 	s.lastCPUTime = now
 
 	return &Metrics{
+		Name:       name,
 		Mem:        mem,
 		CPU:        cpuUsage,
 		CPUPercent: cpuPercent,

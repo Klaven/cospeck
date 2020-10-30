@@ -7,6 +7,7 @@ type Metrics struct {
 	Mem        uint64
 	CPU        float64
 	CPUPercent float64
+	Name       string
 }
 
 // Process represents an interfaces of a daemon to be sampled
