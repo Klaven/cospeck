@@ -14,6 +14,7 @@ type TestFlags struct {
 	CGroupPath    string
 	PodConfigFile string
 	Threads       int
+	cleanRuntime  bool
 }
 
 // MetricsWriter writes metrics to the terminal
@@ -23,6 +24,17 @@ func MetricsWriter(metrics *[]stats.Metrics) {
 	tableWriter.AppendHeader(table.Row{"Run", "Memory", "CPU Total", "CPU %"})
 	for _, m := range *metrics {
 		tableWriter.AppendRow(table.Row{m.Name, m.Mem, m.CPU, m.CPUPercent})
+	}
+	tableWriter.Render()
+}
+
+// MetricsV2Writer writes metricsV2 to the terminal
+func MetricsV2Writer(metrics *[]stats.MetricsV2) {
+	tableWriter := table.NewWriter()
+	tableWriter.SetOutputMirror(os.Stdout)
+	tableWriter.AppendHeader(table.Row{"Run", "Memory", "CPU Total", "Disk"})
+	for _, m := range *metrics {
+		tableWriter.AppendRow(table.Row{m.Name, m.Mem, m.CPU, m.Disk})
 	}
 	tableWriter.Render()
 }

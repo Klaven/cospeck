@@ -39,7 +39,7 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 	fmt.Println("Running tests")
 
-	sampler, err := stats.NewCGroupsSamplerV2(testFlags.CGroupPath)
+	sampler, err := stats.NewCGroupsSampler(testFlags.CGroupPath)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -52,17 +52,25 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	}
 
 	ctx := context.Background()
-
 	rt.Clean(ctx)
+	defer rt.Clean(ctx)
+	// removes all pods before we start
+	if testFlags.cleanRuntime {
+		rt.Clean(ctx)
+	}
 
 	metricsRuntime := []stats.Metrics{}
-	metricsContainers := []stats.MetricsV2{}
+	total, err := sampler.Sample("init")
+	if err != nil {
+		fmt.Println(err)
+	}
+	metricsRuntime = append(metricsRuntime, *total)
 
+	metricsContainers := []stats.MetricsV2{}
 	totalContainers, err := stats.Stats(rt, "init")
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	metricsContainers = append(metricsContainers, *totalContainers)
 
 	fmt.Println("Starting Pods")
@@ -82,7 +90,7 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 		fmt.Println("Failed to get cgroup sampler")
 	}
 
-	total, err := sampler.Sample("pods-created")
+	total, err = sampler.Sample("pods-created")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -92,7 +100,6 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	metricsContainers = append(metricsContainers, *totalContainers)
 
 	//Some time to just let things settle down... probably should be more accurate
@@ -108,7 +115,6 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	metricsContainers = append(metricsContainers, *totalContainers)
 
 	fmt.Println("")
@@ -119,6 +125,9 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	}
 
 	total, err = sampler.Sample("stopping")
+	if err != nil {
+		fmt.Println(err)
+	}
 	metricsRuntime = append(metricsRuntime, *total)
 
 	totalContainers, err = stats.Stats(rt, "stopping")
@@ -127,6 +136,13 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	}
 
 	metricsContainers = append(metricsContainers, *totalContainers)
+
+	fmt.Println("--Container Metrics--")
+	MetricsV2Writer(&metricsContainers)
+
+	fmt.Println("")
+	fmt.Println("--Runtime Metrics--")
+	MetricsWriter(&metricsRuntime)
 
 	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
 	//TODO: fail if not clean

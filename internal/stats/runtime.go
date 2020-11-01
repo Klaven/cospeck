@@ -37,12 +37,6 @@ func Stats(runtime *cri.Runtime, name string) (*MetricsV2, error) {
 		output: "",
 		watch:  false,
 	}
-	/*
-		opts.labels, err = parseLabelStringSlice(context.StringSlice("label"))
-		if err != nil {
-			return err
-		}
-	*/
 	metrics := &MetricsV2{}
 	var err error
 	if metrics, err = ContainerStats(runtime.GetRuntimeClient(), opts, name); err != nil {
@@ -70,14 +64,14 @@ func ContainerStats(client *criapi.RuntimeServiceClient, opts statsOptions, name
 
 	metrics := &MetricsV2{}
 	var err error
-	if metrics, err = displayStats(client, request, opts, name); err != nil {
+	if metrics, err = displayStats(client, request, name); err != nil {
 		return nil, err
 	}
 
 	return metrics, nil
 }
 
-func displayStats(client *criapi.RuntimeServiceClient, request *criapi.ListContainerStatsRequest, opts statsOptions, name string) (*MetricsV2, error) {
+func displayStats(client *criapi.RuntimeServiceClient, request *criapi.ListContainerStatsRequest, name string) (*MetricsV2, error) {
 	r, err := getContainerStats(client, request)
 	if err != nil {
 		return nil, err
@@ -87,8 +81,6 @@ func displayStats(client *criapi.RuntimeServiceClient, request *criapi.ListConta
 	for _, s := range r.GetStats() {
 		oldStats[s.Attributes.Id] = s
 	}
-
-	time.Sleep(opts.sample)
 
 	r, err = getContainerStats(client, request)
 	if err != nil {
@@ -101,9 +93,9 @@ func displayStats(client *criapi.RuntimeServiceClient, request *criapi.ListConta
 		cpu := s.GetCpu().GetUsageCoreNanoSeconds().GetValue()
 		mem := s.GetMemory().GetWorkingSetBytes().GetValue()
 		disk := s.GetWritableLayer().GetUsedBytes().GetValue()
-		metrics.CPU += cpu
-		metrics.Disk += disk
-		metrics.Mem += mem
+		metrics.CPU += (cpu / 1000)
+		metrics.Disk += (disk / bytesInMiB)
+		metrics.Mem += (mem / bytesInMiB)
 
 	}
 	return metrics, nil
