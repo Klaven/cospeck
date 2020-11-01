@@ -49,5 +49,10 @@ Docker:
  
 sudo ./out/cospeck test general --pod-configfile=./config/pod.yaml --runtime=/var/run/containerd/containerd.sock --cgroup-path=/system.slice/docker.service
 
+#### Warning! `Crio stats` seems to be broken in 1.17.4, meaning the container stats can't be computed
 Crio:
-sudo ./out/cospect test general --pod-configfile=./config/pod.yaml
+sudo ./out/cospeck test general --pod-configfile=./config/pod.yaml
+
+After you run you should get some results that look like this:
+
+![cospec output](docs/images/cospeck.png)
