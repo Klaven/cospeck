@@ -36,9 +36,10 @@ var (
 
 // GeneralTest is a very basic general test of memory and CPU
 func GeneralTest(testFlags *TestFlags, totalPods int) {
+
 	fmt.Println("Running tests")
 
-	sampler, err := stats.NewCGroupsSampler(testFlags.CGroupPath)
+	sampler, err := stats.NewCGroupsSamplerV2(testFlags.CGroupPath)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -54,11 +55,15 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 	rt.Clean(ctx)
 
-	metrics := []stats.Metrics{}
+	metricsRuntime := []stats.Metrics{}
+	metricsContainers := []stats.MetricsV2{}
 
-	initTotal, _ := sampler.Sample("init")
+	totalContainers, err := stats.Stats(rt, "init")
+	if err != nil {
+		fmt.Println(err)
+	}
 
-	metrics = append(metrics, *initTotal)
+	metricsContainers = append(metricsContainers, *totalContainers)
 
 	fmt.Println("Starting Pods")
 
@@ -78,13 +83,33 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	}
 
 	total, err := sampler.Sample("pods-created")
-	metrics = append(metrics, *total)
+	if err != nil {
+		fmt.Println(err)
+	}
+	metricsRuntime = append(metricsRuntime, *total)
+
+	totalContainers, err = stats.Stats(rt, "pods-created")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	metricsContainers = append(metricsContainers, *totalContainers)
 
 	//Some time to just let things settle down... probably should be more accurate
 	time.Sleep(10 * time.Second)
 
-	total, err = sampler.Sample("sleep10")
-	metrics = append(metrics, *total)
+	total, err = sampler.Sample("sleep-10")
+	if err != nil {
+		fmt.Println(err)
+	}
+	metricsRuntime = append(metricsRuntime, *total)
+
+	totalContainers, err = stats.Stats(rt, "sleep-10")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	metricsContainers = append(metricsContainers, *totalContainers)
 
 	fmt.Println("")
 	fmt.Println("Stopping Pods")
@@ -94,7 +119,14 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 	}
 
 	total, err = sampler.Sample("stopping")
-	metrics = append(metrics, *total)
+	metricsRuntime = append(metricsRuntime, *total)
+
+	totalContainers, err = stats.Stats(rt, "stopping")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	metricsContainers = append(metricsContainers, *totalContainers)
 
 	//TODO: check to make sure namesapce is cleaned up first (and maybe should create the namespace, failing if it exists)
 	//TODO: fail if not clean

@@ -71,6 +71,11 @@ func NewRuntime(path string, timeout time.Duration, baseContainerConfig, baseSan
 	return runtime, nil
 }
 
+// GetRuntimeClient get runtime client
+func (r *Runtime) GetRuntimeClient() *criapi.RuntimeServiceClient {
+	return r.runtimeClient
+}
+
 func getGRPCConn(socket string, timeout time.Duration) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(socket, grpc.WithInsecure(), grpc.WithTimeout(timeout),
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
@@ -197,15 +202,15 @@ func (c *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, u
 }
 
 // CreatePod will create a Pod with no containers to be used later
-func (c *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
-	pconfig, err := loadPodSandboxConfig(c.baseSandboxConfig)
+func (r *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
+	pconfig, err := loadPodSandboxConfig(r.baseSandboxConfig)
 	if err != nil {
 		fmt.Println("Error reading pod sandbox config: ", err)
 		return nil, err
 	}
 	pconfig.Metadata.Name = defaultPodNamePrefix + name
 
-	podInfo, err := (*c.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: &pconfig})
+	podInfo, err := (*r.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: &pconfig})
 	if err != nil {
 		return nil, err
 	}
@@ -216,28 +221,54 @@ func (c *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
 }
 
 // Clean will clean the operating environment of a specific runtime
-func (c *Runtime) Clean(ctx context.Context) error {
-
-	resp, err := (*c.runtimeClient).ListContainers(ctx, &criapi.ListContainersRequest{Filter: &criapi.ContainerFilter{}})
+func (r *Runtime) Clean(ctx context.Context) error {
+	/*
+		resp, err := (*r.runtimeClient).ListContainers(ctx, &criapi.ListContainersRequest{Filter: &criapi.ContainerFilter{}})
+		if err != nil {
+			return err
+		}
+	*/
+	respp, err := (*r.runtimeClient).ListPodSandbox(ctx, &criapi.ListPodSandboxRequest{Filter: &criapi.PodSandboxFilter{}})
 	if err != nil {
 		return err
 	}
-	containers := resp.GetContainers()
-	for _, ctr := range containers {
-		podID := ctr.GetPodSandboxId()
-		_, err := (*c.runtimeClient).StopContainer(ctx, &criapi.StopContainerRequest{ContainerId: ctr.GetId(), Timeout: 0})
+
+	pods := respp.GetItems()
+
+	for _, pod := range pods {
+		_, err = (*r.runtimeClient).StopPodSandbox(ctx, &criapi.StopPodSandboxRequest{PodSandboxId: pod.Id})
 		if err != nil {
-			log.Errorf("Error stopping container: %v", err)
+			log.Errorf("Error deleting pod %s, %v", pod.Id, err)
 		}
-		_, err = (*c.runtimeClient).RemoveContainer(ctx, &criapi.RemoveContainerRequest{ContainerId: ctr.GetId()})
+		_, err = (*r.runtimeClient).RemovePodSandbox(ctx, &criapi.RemovePodSandboxRequest{PodSandboxId: pod.Id})
 		if err != nil {
-			log.Errorf("Error deleting container %v", err)
-		}
-		_, err = (*c.runtimeClient).RemovePodSandbox(ctx, &criapi.RemovePodSandboxRequest{PodSandboxId: podID})
-		if err != nil {
-			log.Errorf("Error deleting pod %s, %v", podID, err)
+			log.Errorf("Error deleting pod %s, %v", pod.Id, err)
 		}
 	}
+	/*
+		containers := resp.GetContainers()
+		for _, ctr := range containers {
+			podID := ctr.GetPodSandboxId()
+			_, err := (*r.runtimeClient).StopContainer(ctx, &criapi.StopContainerRequest{ContainerId: ctr.GetId(), Timeout: 0})
+			if err != nil {
+				log.Errorf("Error stopping container: %v", err)
+			}
+
+			_, err = (*r.runtimeClient).RemoveContainer(ctx, &criapi.RemoveContainerRequest{ContainerId: ctr.GetId()})
+			if err != nil {
+				log.Errorf("Error deleting container %v", err)
+			}
+
+			_, err = (*r.runtimeClient).StopPodSandbox(ctx, &criapi.StopPodSandboxRequest{PodSandboxId: podID})
+			if err != nil {
+				log.Errorf("Error deleting pod %s, %v", podID, err)
+			}
+			_, err = (*r.runtimeClient).RemovePodSandbox(ctx, &criapi.RemovePodSandboxRequest{PodSandboxId: podID})
+			if err != nil {
+				log.Errorf("Error deleting pod %s, %v", podID, err)
+			}
+		}
+	*/
 	log.Infof("CRI cleanup complete.")
 	return nil
 }

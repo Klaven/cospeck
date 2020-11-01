@@ -20,6 +20,5 @@ require (
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	k8s.io/api v0.19.2
-	k8s.io/cri-api v0.18.0
-
+	k8s.io/cri-api v0.19.2
 )

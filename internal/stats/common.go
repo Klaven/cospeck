@@ -10,6 +10,14 @@ type Metrics struct {
 	Name       string
 }
 
+// MetricsV2 represents stats sample from daemon
+type MetricsV2 struct {
+	Mem  uint64
+	CPU  uint64
+	Disk uint64
+	Name string
+}
+
 // Process represents an interfaces of a daemon to be sampled
 type Process interface {
 	// PID returns daemon process id
