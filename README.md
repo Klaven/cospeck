@@ -1,4 +1,5 @@
-[![CI Status](https://github.com/Klaven/cospeck/workflows/go/badge.svg)](https://github.com/Klaven/cospeck/actions)
+[![CI Status](https://github.com/Klaven/cospeck/workflows/Go/badge.svg)](https://github.com/Klaven/cospeck/actions)
+
 # cospeck
 a speed test for contaienr runtimes COntainer SPeed chECK
 
