@@ -12,7 +12,7 @@ status:
 Only working command is:
 cospeck test general
 
-Currently the output is hard to read, sorry.
+Currently the output is (less) hard to read, sorry. it's a work in progress.
 
 How to install?
 clone the repo wherever you want.
