@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	criapi "github.com/Klaven/cospeck/cri"
 	"github.com/Klaven/cospeck/internal/runtime/cri"
 	"github.com/pkg/errors"
-	criapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 type statsOptions struct {

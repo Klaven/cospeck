@@ -11,9 +11,10 @@ import (
 	"os"
 	"time"
 
+	criapi "github.com/Klaven/cospeck/cri"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	criapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -29,27 +30,32 @@ type Runtime struct {
 	criSocketAddress    string
 	runtimeClient       *criapi.RuntimeServiceClient
 	imageClient         *criapi.ImageServiceClient
-	baseSandboxConfig   string
-	baseContainerConfig string
+	baseSandboxConfig   *criapi.PodSandboxConfig
+	baseContainerConfig *criapi.ContainerConfig
 	timeout             time.Duration
 	baseYaml            []byte
 }
 
 // NewRuntime creates an instance of the CRI runtime
-func NewRuntime(path string, timeout time.Duration, baseContainerConfig, baseSandboxConfig *string) (*Runtime, error) {
+func NewRuntime(path string, timeout time.Duration, podSandboxConfigReader, containerConfigReader *io.Reader) (*Runtime, error) {
 	if path == "" {
 		return nil, fmt.Errorf("socket path unspecified")
 	}
-
-	bcc := defaultContainerConfig
-	if baseContainerConfig != nil {
-		bcc = *baseContainerConfig
+	var sandboxFile io.Reader
+	if podSandboxConfigReader == nil {
+		sandboxFile, _ = os.Open(defaultSandboxConfig)
+	} else {
+		sandboxFile = *podSandboxConfigReader
 	}
+	bsc, err := loadPodSandboxConfig(sandboxFile)
 
-	bsc := defaultSandboxConfig
-	if baseSandboxConfig != nil {
-		bsc = *baseSandboxConfig
+	var containerFile io.Reader
+	if containerConfigReader == nil {
+		containerFile, _ = os.Open(defaultContainerConfig)
+	} else {
+		containerFile = *containerConfigReader
 	}
+	bcc, err := loadContainerConfig(containerFile)
 
 	conn, err := getGRPCConn(path, time.Duration(10*time.Second))
 	if err != nil {
@@ -171,16 +177,14 @@ func (r *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, u
 
 	for _, contain := range con {
 		r.PullImage(ctx, contain.Image.Image)
-		cconfig, err := loadContainerConfig(r.baseContainerConfig)
-
-		if err != nil {
-			fmt.Println("error reading in default pod file")
-		}
+		clone := proto.Clone(r.baseContainerConfig)
+		cconfig := criapi.ContainerConfig{}
+		proto.Merge(&cconfig, clone)
 
 		cconfig.Image.Image = contain.Image.Image
 		cconfig.Command = contain.Command
 		cconfig.Metadata.Name = contain.Metadata.Name
-		_, containerID, err := r.CreateContainer(podInfo.PodSandboxId, &contain, p)
+		_, containerID, err := r.CreateContainer(podInfo.PodSandboxId, &cconfig, p)
 		if err != nil {
 			fmt.Println("error creating container: ", err)
 			continue
@@ -203,11 +207,11 @@ func (r *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, u
 
 // CreatePod will create a Pod with no containers to be used later
 func (r *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
-	pconfig, err := loadPodSandboxConfig(r.baseSandboxConfig)
-	if err != nil {
-		fmt.Println("Error reading pod sandbox config: ", err)
-		return nil, err
-	}
+
+	clone := proto.Clone(r.baseSandboxConfig)
+	pconfig := criapi.PodSandboxConfig{}
+	proto.Merge(&pconfig, clone)
+
 	pconfig.Metadata.Name = defaultPodNamePrefix + name
 
 	podInfo, err := (*r.runtimeClient).RunPodSandbox(ctx, &criapi.RunPodSandboxRequest{Config: &pconfig})
@@ -373,32 +377,20 @@ func openFile(path string) (*os.File, error) {
 	return f, nil
 }
 
-func loadPodSandboxConfig(path string) (criapi.PodSandboxConfig, error) {
-	f, err := openFile(path)
-	if err != nil {
-		return criapi.PodSandboxConfig{}, err
-	}
-	defer f.Close()
-
+func loadPodSandboxConfig(file io.Reader) (*criapi.PodSandboxConfig, error) {
 	var config criapi.PodSandboxConfig
 
-	if err := json.NewDecoder(f).Decode(&config); err != nil {
-		return criapi.PodSandboxConfig{}, err
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		return &criapi.PodSandboxConfig{}, err
 	}
-	return config, nil
+	return &config, nil
 }
 
-func loadContainerConfig(path string) (criapi.ContainerConfig, error) {
-	f, err := openFile(path)
-	if err != nil {
-		return criapi.ContainerConfig{}, err
-	}
-	defer f.Close()
-
+func loadContainerConfig(file io.Reader) (*criapi.ContainerConfig, error) {
 	var config criapi.ContainerConfig
 
-	if err := json.NewDecoder(f).Decode(&config); err != nil {
-		return criapi.ContainerConfig{}, err
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		return &criapi.ContainerConfig{}, err
 	}
-	return config, nil
+	return &config, nil
 }

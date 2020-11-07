@@ -1,3 +1,4 @@
+.PHONY: proto build run
 build:
 	go build -o out/cospeck main.go
 
@@ -12,3 +13,6 @@ compile:
 
 install:
 	go build -o ${GOPATH}/bin/cospeck main.go
+
+proto:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative cri/api.proto
