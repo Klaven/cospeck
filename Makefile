@@ -1,4 +1,4 @@
-.PHONY: proto build run
+.PHONY: proto build run test
 build:
 	go build -o out/cospeck main.go
 
@@ -16,3 +16,6 @@ install:
 
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative cri/api.proto
+
+test:
+	go test ./...
