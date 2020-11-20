@@ -27,7 +27,7 @@ type statsOptions struct {
 }
 
 // Stats gets them stats
-func Stats(runtime *cri.Runtime, name string) (*MetricsV2, error) {
+func Stats(runtime *cri.CRIRuntime, name string) (*MetricsV2, error) {
 
 	opts := statsOptions{
 		all:    true,

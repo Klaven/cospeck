@@ -27,7 +27,7 @@ func NodeBusterTest(testFlags *TestFlags) {
 		return
 	}
 
-	rt, err := cri.NewRuntime(testFlags.OCIRuntime, 30*time.Second, nil, nil)
+	rt, err := cri.NewCRIRuntime(testFlags.OCIRuntime, 30*time.Second, nil, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -64,7 +64,7 @@ func NodeBusterTest(testFlags *TestFlags) {
 		fmt.Println("starting pod number: ", i)
 		runNumberAsString := strconv.Itoa(i)
 		l.Begin()
-		go func(i int, ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) {
+		go func(i int, ctx context.Context, runtime *cri.CRIRuntime, podConfigFile string, uid string, finished *limiter.Limiter) {
 			err := createPod(ctx, rt, podConfigFile, runNumberAsString, l)
 			if err != nil {
 				errorChan <- &NodeBusterResults{

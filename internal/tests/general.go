@@ -45,7 +45,7 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 		return
 	}
 
-	rt, err := cri.NewRuntime(testFlags.OCIRuntime, 30*time.Second, nil, nil)
+	rt, err := cri.NewCRIRuntime(testFlags.OCIRuntime, 30*time.Second, nil, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -149,7 +149,7 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 }
 
-func stopPod(ctx context.Context, runtime *cri.Runtime, pod *testPod, finished *limiter.Limiter) {
+func stopPod(ctx context.Context, runtime *cri.CRIRuntime, pod *testPod, finished *limiter.Limiter) {
 	defer finished.End()
 	duration, err := runtime.StopPod(ctx, pod.Pod)
 	if err != nil {
@@ -159,7 +159,7 @@ func stopPod(ctx context.Context, runtime *cri.Runtime, pod *testPod, finished *
 	pod.DestructionTime = duration
 }
 
-func createPod(ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) error {
+func createPod(ctx context.Context, runtime *cri.CRIRuntime, podConfigFile string, uid string, finished *limiter.Limiter) error {
 	defer finished.End()
 	start := time.Now()
 	ct, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
