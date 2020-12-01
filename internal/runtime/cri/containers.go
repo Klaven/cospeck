@@ -1,5 +1,7 @@
 package cri
 
+import "github.com/Klaven/cospeck/internal/runtime"
+
 // Container is an implementation of the container metadata needed for CRI implementation
 type Container struct {
 	name        string
@@ -10,6 +12,9 @@ type Container struct {
 	trace       bool
 	containerID string
 }
+
+var _ runtime.Container = &Container{}
+var _ runtime.Container = (*Container)(nil)
 
 // Name returns the name of the container
 func (c *Container) Name() string {
@@ -37,7 +42,7 @@ func (c *Container) Command() string {
 	return c.cmdOverride
 }
 
-//GetContainerID return containers ID
-func (c *Container) GetContainerID() string {
+//ContainerID return containers ID
+func (c *Container) ContainerID() string {
 	return c.containerID
 }

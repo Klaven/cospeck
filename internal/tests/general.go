@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Klaven/cospeck/internal/runtime"
 	"github.com/Klaven/cospeck/internal/runtime/cri"
 	"github.com/Klaven/cospeck/internal/stats"
 	"github.com/tidwall/limiter"
@@ -16,13 +17,13 @@ type testPod struct {
 	CreationTime    time.Duration
 	DestructionTime time.Duration
 	AverageMemory   int64
-	Pod             *cri.Pod
+	Pod             *runtime.Pod
 }
 
 // Find finds a pod in a list of test pods
-func Find(a []testPod, x *cri.Pod) int {
+func Find(a []testPod, x runtime.Pod) int {
 	for i, n := range a {
-		if x == n.Pod {
+		if x == *n.Pod {
 			return i
 		}
 	}
@@ -149,9 +150,9 @@ func GeneralTest(testFlags *TestFlags, totalPods int) {
 
 }
 
-func stopPod(ctx context.Context, runtime *cri.CRIRuntime, pod *testPod, finished *limiter.Limiter) {
+func stopPod(ctx context.Context, runtime *cri.Runtime, pod *testPod, finished *limiter.Limiter) {
 	defer finished.End()
-	duration, err := runtime.StopPod(ctx, pod.Pod)
+	duration, err := runtime.StopPod(ctx, pod.Pod, "")
 	if err != nil {
 		fmt.Println("duration:", duration)
 		fmt.Println(err)
@@ -159,18 +160,18 @@ func stopPod(ctx context.Context, runtime *cri.CRIRuntime, pod *testPod, finishe
 	pod.DestructionTime = duration
 }
 
-func createPod(ctx context.Context, runtime *cri.CRIRuntime, podConfigFile string, uid string, finished *limiter.Limiter) error {
+func createPod(ctx context.Context, runtime runtime.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) error {
 	defer finished.End()
 	start := time.Now()
-	ct, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
+	pod, err := runtime.CreatePodAndContainerFromSpec(ctx, podConfigFile, uid)
 
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 
-	for _, c := range ct.Containers() {
-		_, err = runtime.Run(ctx, *c)
+	for _, c := range pod.Containers() {
+		_, err = runtime.Run(ctx, c)
 		if err != nil {
 			fmt.Println("error starting container you dumb dumb: ", err)
 			return err
@@ -180,7 +181,7 @@ func createPod(ctx context.Context, runtime *cri.CRIRuntime, podConfigFile strin
 	elapsed := time.Since(start)
 	mutex.Lock()
 	pods = append(pods, testPod{
-		Pod:          ct,
+		Pod:          &pod,
 		CreationTime: elapsed,
 	})
 	mutex.Unlock()

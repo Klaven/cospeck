@@ -12,6 +12,7 @@ import (
 	"time"
 
 	criapi "github.com/Klaven/cospeck/cri"
+	"github.com/Klaven/cospeck/internal/runtime"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -25,8 +26,8 @@ const (
 	defaultPodConfig       = "config/pod.yaml"
 )
 
-// CRIRuntime is an implementation of the cri API
-type CRIRuntime struct {
+// Runtime is an implementation of the cri API
+type Runtime struct {
 	criSocketAddress    string
 	runtimeClient       *criapi.RuntimeServiceClient
 	imageClient         *criapi.ImageServiceClient
@@ -36,8 +37,11 @@ type CRIRuntime struct {
 	baseYaml            []byte
 }
 
+var _ runtime.Runtime = &Runtime{}
+var _ runtime.Runtime = (*Runtime)(nil)
+
 // NewCRIRuntime creates an instance of the CRI runtime
-func NewCRIRuntime(path string, timeout time.Duration, podSandboxConfigReader, containerConfigReader *io.Reader) (*CRIRuntime, error) {
+func NewCRIRuntime(path string, timeout time.Duration, podSandboxConfigReader, containerConfigReader *io.Reader) (*Runtime, error) {
 	if path == "" {
 		return nil, fmt.Errorf("socket path unspecified")
 	}
@@ -65,7 +69,7 @@ func NewCRIRuntime(path string, timeout time.Duration, podSandboxConfigReader, c
 	runtimeClient := criapi.NewRuntimeServiceClient(conn)
 	imageClient := criapi.NewImageServiceClient(conn)
 
-	runtime := &CRIRuntime{
+	runtime := &Runtime{
 		criSocketAddress:    path,
 		runtimeClient:       &runtimeClient,
 		imageClient:         &imageClient,
@@ -78,7 +82,7 @@ func NewCRIRuntime(path string, timeout time.Duration, podSandboxConfigReader, c
 }
 
 // GetRuntimeClient get runtime client
-func (r *CRIRuntime) GetRuntimeClient() *criapi.RuntimeServiceClient {
+func (r *Runtime) GetRuntimeClient() *criapi.RuntimeServiceClient {
 	return r.runtimeClient
 }
 
@@ -94,7 +98,7 @@ func getGRPCConn(socket string, timeout time.Duration) (*grpc.ClientConn, error)
 }
 
 // Info returns a string with information about the container engine/runtime details
-func (r *CRIRuntime) Info(ctx context.Context) (string, error) {
+func (r *Runtime) Info(ctx context.Context) (string, error) {
 	version, err := (*r.runtimeClient).Version(ctx, &criapi.VersionRequest{})
 	if err != nil {
 		return "", err
@@ -106,12 +110,12 @@ func (r *CRIRuntime) Info(ctx context.Context) (string, error) {
 }
 
 // Path returns the binary (or socket) path related to the runtime in use
-func (r *CRIRuntime) Path() string {
+func (r *Runtime) Path() string {
 	return r.criSocketAddress
 }
 
 // pullImage pulls an image
-func (r *CRIRuntime) pullImage(ctx context.Context, image string) error {
+func (r *Runtime) pullImage(ctx context.Context, image string) error {
 	if status, err := (*r.imageClient).ImageStatus(ctx, &criapi.ImageStatusRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil || status.Image == nil {
 		if _, err := (*r.imageClient).PullImage(ctx, &criapi.PullImageRequest{Image: &criapi.ImageSpec{Image: image}}); err != nil {
 			return err
@@ -127,7 +131,7 @@ func (r *CRIRuntime) pullImage(ctx context.Context, image string) error {
 }
 
 // CreateContainer creates a container in the specified pod
-func (r *CRIRuntime) CreateContainer(podSandBoxID string, config *criapi.ContainerConfig, sandboxConfig *criapi.PodSandboxConfig) (time.Duration, string, error) {
+func (r *Runtime) CreateContainer(podSandBoxID string, config *criapi.ContainerConfig, sandboxConfig *criapi.PodSandboxConfig) (time.Duration, string, error) {
 	start := time.Now()
 	ctx, cancel := getContextWithTimeout(r.timeout)
 	defer cancel()
@@ -151,7 +155,7 @@ func (r *CRIRuntime) CreateContainer(podSandBoxID string, config *criapi.Contain
 }
 
 // CreatePodAndContainerFromSpec simple helper function to create a pod and it's contaienrs from a spec
-func (r *CRIRuntime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, uid string) (*Pod, error) {
+func (r *Runtime) CreatePodAndContainerFromSpec(ctx context.Context, fileName, uid string) (runtime.Pod, error) {
 	yamlFile, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		fmt.Printf("Error reading YAML file: %s\n", err)
@@ -173,7 +177,7 @@ func (r *CRIRuntime) CreatePodAndContainerFromSpec(ctx context.Context, fileName
 		return nil, err
 	}
 
-	containers := []*Container{}
+	containers := []runtime.Container{}
 
 	for _, contain := range con {
 		r.pullImage(ctx, contain.Image.Image)
@@ -206,7 +210,7 @@ func (r *CRIRuntime) CreatePodAndContainerFromSpec(ctx context.Context, fileName
 }
 
 // CreatePod will create a Pod with no containers to be used later
-func (r *CRIRuntime) CreatePod(ctx context.Context, name string) (*Pod, error) {
+func (r *Runtime) CreatePod(ctx context.Context, name string) (*Pod, error) {
 
 	clone := proto.Clone(r.baseSandboxConfig)
 	pconfig := criapi.PodSandboxConfig{}
@@ -225,7 +229,7 @@ func (r *CRIRuntime) CreatePod(ctx context.Context, name string) (*Pod, error) {
 }
 
 // Clean will clean the operating environment of a specific runtime
-func (r *CRIRuntime) Clean(ctx context.Context) error {
+func (r *Runtime) Clean(ctx context.Context) error {
 
 	respp, err := (*r.runtimeClient).ListPodSandbox(ctx, &criapi.ListPodSandboxRequest{Filter: &criapi.PodSandboxFilter{}})
 	if err != nil {
@@ -250,17 +254,17 @@ func (r *CRIRuntime) Clean(ctx context.Context) error {
 }
 
 // Run will execute a container using the cri runtime
-func (r *CRIRuntime) Run(ctx context.Context, ctr Container) (time.Duration, error) {
+func (r *Runtime) Run(ctx context.Context, ctr runtime.Container) (time.Duration, error) {
 	start := time.Now()
-	_, err := (*r.runtimeClient).StartContainer(ctx, &criapi.StartContainerRequest{ContainerId: ctr.GetContainerID()})
+	_, err := (*r.runtimeClient).StartContainer(ctx, &criapi.StartContainerRequest{ContainerId: ctr.ContainerID()})
 	elapsed := time.Since(start)
 	return elapsed, err
 }
 
 // Stop will stop/kill a container will not stop a pod
-func (r *CRIRuntime) Stop(ctx context.Context, ctr *Container) (string, time.Duration, error) {
+func (r *Runtime) Stop(ctx context.Context, ctr *Container) (string, time.Duration, error) {
 	start := time.Now()
-	resp, err := (*r.runtimeClient).ListContainers(ctx, &criapi.ListContainersRequest{Filter: &criapi.ContainerFilter{Id: ctr.GetContainerID()}})
+	resp, err := (*r.runtimeClient).ListContainers(ctx, &criapi.ListContainersRequest{Filter: &criapi.ContainerFilter{Id: ctr.ContainerID()}})
 	if err != nil {
 		return "", 0, nil
 	}
@@ -284,9 +288,9 @@ func (r *CRIRuntime) Stop(ctx context.Context, ctr *Container) (string, time.Dur
 }
 
 // StopPod a pod, will stop all containers in the pod
-func (r *CRIRuntime) StopPod(ctx context.Context, pod *Pod) (time.Duration, error) {
+func (r *Runtime) StopPod(ctx context.Context, pod *runtime.Pod, file string) (time.Duration, error) {
 	start := time.Now()
-	_, err := (*r.runtimeClient).StopPodSandbox(ctx, &criapi.StopPodSandboxRequest{PodSandboxId: pod.PodID()})
+	_, err := (*r.runtimeClient).StopPodSandbox(ctx, &criapi.StopPodSandboxRequest{PodSandboxId: (*pod).PodID()})
 	if err != nil {
 		log.Errorf("Error Stoping pod %v", err)
 		return 0, nil
@@ -297,11 +301,11 @@ func (r *CRIRuntime) StopPod(ctx context.Context, pod *Pod) (time.Duration, erro
 }
 
 // RemovePod will remove a pod sandbox
-func (r *CRIRuntime) RemovePod(ctx context.Context, pod *Pod) (time.Duration, error) {
+func (r *Runtime) RemovePod(ctx context.Context, pod *runtime.Pod, file string) (time.Duration, error) {
 
 	start := time.Now()
 
-	_, err := (*r.runtimeClient).RemovePodSandbox(ctx, &criapi.RemovePodSandboxRequest{PodSandboxId: pod.PodID()})
+	_, err := (*r.runtimeClient).RemovePodSandbox(ctx, &criapi.RemovePodSandboxRequest{PodSandboxId: (*pod).PodID()})
 	if err != nil {
 		log.Errorf("Error deleting pod %v", err)
 		return 0, nil
@@ -313,27 +317,27 @@ func (r *CRIRuntime) RemovePod(ctx context.Context, pod *Pod) (time.Duration, er
 
 // Close allows the runtime to free any resources/close any
 // connections
-func (r *CRIRuntime) Close() error {
+func (r *Runtime) Close() error {
 	return nil
 }
 
 // PID returns daemon process id
-func (r *CRIRuntime) PID() (int, error) {
+func (r *Runtime) PID() (int, error) {
 	return 0, errors.New("not implemented")
 }
 
 // Wait blocks thread until container stop
-func (r *CRIRuntime) Wait(ctx context.Context, ctr Container) (string, time.Duration, error) {
+func (r *Runtime) Wait(ctx context.Context, ctr Container) (string, time.Duration, error) {
 	return "", 0, errors.New("not implemented")
 }
 
 // Stats returns stats data from daemon for container
-func (r *CRIRuntime) Stats(ctx context.Context, ctr Container) (io.ReadCloser, error) {
+func (r *Runtime) Stats(ctx context.Context, ctr Container) (io.ReadCloser, error) {
 	return nil, errors.New("not implemented")
 }
 
 // ProcNames returns the list of process names contributing to mem/cpu usage during overhead benchmark
-func (r *CRIRuntime) ProcNames() []string {
+func (r *Runtime) ProcNames() []string {
 	return []string{}
 }
 

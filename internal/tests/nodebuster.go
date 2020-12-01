@@ -11,6 +11,7 @@ import (
 	"github.com/tidwall/limiter"
 )
 
+// NodeBusterResults holds results of running a node-buster test
 type NodeBusterResults struct {
 	Message string
 	Total   int
@@ -64,7 +65,7 @@ func NodeBusterTest(testFlags *TestFlags) {
 		fmt.Println("starting pod number: ", i)
 		runNumberAsString := strconv.Itoa(i)
 		l.Begin()
-		go func(i int, ctx context.Context, runtime *cri.CRIRuntime, podConfigFile string, uid string, finished *limiter.Limiter) {
+		go func(i int, ctx context.Context, runtime *cri.Runtime, podConfigFile string, uid string, finished *limiter.Limiter) {
 			err := createPod(ctx, rt, podConfigFile, runNumberAsString, l)
 			if err != nil {
 				errorChan <- &NodeBusterResults{

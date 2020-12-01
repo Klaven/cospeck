@@ -14,10 +14,10 @@ type Container interface {
 	// Image returns either a bundle path
 	Image() string
 
+	// ContainerID returns a container's id as a string
+	ContainerID() string
+
 	// Command returns an optional command that overrides the default image
 	// "CMD" or "ENTRYPOINT" for the Docker and Containerd (gRPC) drivers
 	Command() string
-
-	//GetPodID return pod-id associated with container.
-	GetPodID() string
 }
